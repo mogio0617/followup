@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+　<link rel="manifest" href="manifest.json">
+<script>
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("service-worker.js");
+  }
+</script>
+
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FollowUp</title>
+  <style>
+    body {
+      font-family: "Helvetica Neue", Arial, sans-serif;
+      background-color: #f7f8fa;
+      color: #333;
+      margin: 0;
+      padding: 20px;
+    }
+    h1 {
+      text-align: center;
+      color: #333;
+    }
+    button {
+      background-color: #87cefa;
+      border: none;
+      padding: 10px 16px;
+      border-radius: 6px;
+      color: white;
+      cursor: pointer;
+      font-size: 14px;
+      margin: 10px 0;
+    }
+    button:hover {
+      background-color: #6bbce3;
+    }
+    .task {
+      background: white;
+      padding: 12px;
+      margin: 8px 0;
+      border-radius: 6px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    }
+    .task-header {
+      display: flex;
+      justify-content: space-between;
+      font-weight: bold;
+    }
+    .task small {
+      color: #888;
+    }
+    .section-title {
+      margin-top: 24px;
+      border-bottom: 1px solid #ddd;
+      padding-bottom: 4px;
+      color: #444;
+    }
+    #taskForm {
+      display: none;
+      background: #fff;
+      padding: 16px;
+      border-radius: 6px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      margin-bottom: 20px;
+    }
+    input, textarea {
+      width: 100%;
+      margin: 6px 0 12px;
+      padding: 8px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <h1>FollowUp</h1>
+  <button onclick="toggleForm()">＋ 新規タスクを追加</button>
+
+  <div id="taskForm">
+    <input id="client" placeholder="顧客名">
+    <input id="title" placeholder="内容">
+    <label>期日と時間：</label>
+    <input id="due" type="datetime-local">
+    <textarea id="note" placeholder="メモ（任意）"></textarea>
+    <button onclick="addTask()">保存</button>
+    <button onclick="toggleForm()">キャンセル</button>
+  </div>
+
+  <div id="todaySection">
+    <h2 class="section-title">今日</h2>
+    <div id="todayTasks"></div>
+  </div>
+
+  <div id="tomorrowSection">
+    <h2 class="section-title">明日</h2>
+    <div id="tomorrowTasks"></div>
+  </div>
+
+  <div id="pastSection">
+    <h2 class="section-title">期限切れ</h2>
+    <div id="pastTasks"></div>
+  </div>
+
+  <script>
+    let tasks = JSON.parse(localStorage.getItem("followup_tasks")) || [];
+
+    function toggleForm() {
+      const form = document.getElementById("taskForm");
+      form.style.display = form.style.display === "block" ? "none" : "block";
+    }
+
+    function addTask() {
+      const client = document.getElementById("client").value.trim();
+      const title = document.getElementById("title").value.trim();
+      const due = document.getElementById("due").value;
+      const note = document.getElementById("note").value.trim();
+
+      if (!client || !title || !due) {
+        alert("顧客名・内容・期日を入力してください。");
+        return;
+      }
+
+      tasks.push({ id: Date.now(), client, title, due, note });
+      localStorage.setItem("followup_tasks", JSON.stringify(tasks));
+
+      document.getElementById("client").value = "";
+      document.getElementById("title").value = "";
+      document.getElementById("due").value = "";
+      document.getElementById("note").value = "";
+      toggleForm();
+      renderTasks();
+    }
+
+    function renderTasks() {
+      const todayDiv = document.getElementById("todayTasks");
+      const tomorrowDiv = document.getElementById("tomorrowTasks");
+      const pastDiv = document.getElementById("pastTasks");
+
+      todayDiv.innerHTML = tomorrowDiv.innerHTML = pastDiv.innerHTML = "";
+
+      const now = new Date();
+      const todayStr = now.toISOString().split("T")[0];
+      const tomorrowStr = new Date(now.getTime() + 86400000).toISOString().split("T")[0];
+
+      tasks.sort((a,b)=> new Date(a.due) - new Date(b.due));
+
+      tasks.forEach(t => {
+        const dueDate = new Date(t.due);
+        const taskEl = document.createElement("div");
+        taskEl.className = "task";
+        taskEl.innerHTML = `
+          <div class="task-header">
+            <span>${t.client}</span>
+            <small>${dueDate.toLocaleString()}</small>
+          </div>
+          <div>${t.title}</div>
+          ${t.note ? `<small>${t.note}</small><br>` : ""}
+          <button onclick="deleteTask(${t.id})">削除</button>
+        `;
+
+        const taskDateStr = t.due.split("T")[0];
+        if (taskDateStr === todayStr) todayDiv.appendChild(taskEl);
+        else if (taskDateStr === tomorrowStr) tomorrowDiv.appendChild(taskEl);
+        else if (new Date(t.due) < now) pastDiv.appendChild(taskEl);
+      });
+    }
+
+    function deleteTask(id) {
+      if (confirm("削除しますか？")) {
+        tasks = tasks.filter(t => t.id !== id);
+        localStorage.setItem("followup_tasks", JSON.stringify(tasks));
+        renderTasks();
+      }
+    }
+
+    renderTasks();
+  </script>
+</body>
+</html>
